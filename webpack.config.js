@@ -5,21 +5,24 @@ var isProduction = process.env.NODE_ENV === 'production';
 console.log(isProduction)
 
 module.exports = {
-  entry: isProduction?'./src/ripple.js':'./src/main.js',
+  entry: isProduction ? './src/ripple.js' : './src/main.js',
   output: {
     path: path.resolve(__dirname, './dist'),
     publicPath: '/dist/',
     filename: 'ripple.js',
-    libraryTarget: "commonjs2",
+    libraryTarget: isProduction ? "commonjs2" : undefined,
   },
   module: {
     rules: [
       {
+        test: /\.css$/,
+        use: [ 'css-loader' ]
+      },
+      {
         test: /\.vue$/,
         loader: 'vue-loader',
         options: {
-          loaders: {
-          }
+          loaders: {}
           // other vue-loader options go here
         }
       },
