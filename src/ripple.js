@@ -1,131 +1,128 @@
 import './style.css';
 
-function hexToRgb(str) {
-  const reg = /^#([0-9a-fA-f]{3}|[0-9a-fA-f]{6})$/;
-  let sColor = str.toLowerCase();
-  if (sColor && reg.test(sColor)) {
-    if (sColor.length === 4) {
-      let sColorNew = "#";
-      for (let i = 1; i < 4; i += 1) {
-        sColorNew += sColor.slice(i, i + 1).concat(sColor.slice(i, i + 1));
-      }
-      sColor = sColorNew;
-    }
-    //处理六位的颜色值
-    const sColorChange = [];
-    for (let i = 1; i < 7; i += 2) {
-      sColorChange.push(parseInt("0x" + sColor.slice(i, i + 2)));
-    }
-    return sColorChange.join(",");
-  }
-  return sColor;
-}
-
-class Ripple {
-  constructor(options) {
-    const defaultOptions = { color: '#666', duration: 500, render: '' };
-    this.options = Object.assign(defaultOptions, options);
-    this.init();
-  }
-
-  init() {
-    const {
-      render,
-      el,
-      width,
-      height,
-    } = this.options;
-
-    switch (render) {
-      case 'canvas':
-        const canvas = this.options.ripple = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        Object.assign(canvas.style, {
-          position: 'absolute',
-          top: 0,
-          left: 0,
-        });
-        el.appendChild(canvas);
-        break;
-      default:
-        break;
-    }
-  }
-
-  animate(offsetX, offsetY) {
-    const { ripple, color, render, el, duration, radius, width, height } = this.options;
-    const diameter = 2 * radius;
-
-    if (render === 'canvas') {
-      let start = null;
-      const ctx = ripple.getContext('2d');
-
-      function draw(timestamp) {
-        if (start === null) start = timestamp;
-
-        const progress = timestamp - start;
-        ctx.clearRect(0, 0, width, height);
-        ctx.beginPath();
-        ctx.arc(offsetX, offsetY, progress * diameter / duration, 0, 2 * Math.PI);
-        ctx.fillStyle = `rgba(${hexToRgb(color)},${1 - progress / duration})`;//半透明绿色
-        ctx.fill();
-        ctx.stroke();
-
-        if (progress < duration) {
-          requestAnimationFrame(draw, ripple);
-        }
-      }
-
-      requestAnimationFrame(draw, ripple);
-    } else {
-      const ripple = document.createElement('div');
-      ripple.style.background = color;
-      ripple.className = 'v-ripple';
-
-      Object.assign(ripple.style, {
-        background: color,
-        top: `${offsetY}px`,
-        left: `${offsetX}px`,
-        width: `${diameter}px`,
-        height: `${diameter}px`,
-        animationDuration: `${duration}ms`,
-        webkitAnimationDuration: `${duration}ms`,
-        mozAnimationDuration: `${duration}ms`,
-      });
-
-      el.appendChild(ripple);
-      setTimeout(() => {
-        ripple.remove();
-      }, duration);
-    }
-  }
-}
-
-const ripple = {
-  inserted(el, binding) {
-    const { position, overflow } = getComputedStyle(el);
-    el.style.overflow = (overflow !== 'hidden') ? 'hidden' : '';
-    el.style.position = (position === 'static') ? 'relative' : '';
-
-    const { left, top, width, height } = el.getBoundingClientRect();
-    const radius = height > width ? height : width;
-
-    const ripple = new Ripple(Object.assign({ el, width, height, radius }, binding.value));
-
-    el.addEventListener('click', (ev) => {
-      const { pageX, pageY } = ev;
-      const offsetX = pageX - left;
-      const offsetY = pageY - top;
-      ripple.animate(offsetX, offsetY);
-    });
-  },
+const DEFAULT_OPTION = {
+  class: '', // Animation container className
+  center: false, // Position of animation
+  duration: 400, // Duration of animation  (unit: ms)
+  color: '', // Background color of Animation
+  radius: '', // Radius of Animation ( default: the longer between width and height )
 };
 
+function style($el, value) {
+  const el = $el;
+  ['transform', 'webkitTransform'].forEach((i) => {
+    el.style[i] = value;
+  });
+}
+
+function show(e, $el, binding) {
+  const el = $el;
+  const container = document.createElement('span');
+  const animation = document.createElement('span');
+
+  container.appendChild(animation);
+  container.className = 'ripple__container';
+
+  // Add the animation container className
+  if (binding.class) {
+    container.className += ` ${binding.class}`;
+  }
+  // Set the radius of animation
+  const size = binding.radius || (el.clientWidth > el.clientHeight ? el.clientWidth : el.clientHeight);
+  animation.className = 'ripple__animation';
+  const radius = `${size * (binding.center ? 1 : 2)}px`;
+  animation.style.width = radius;
+  animation.style.height = radius;
+  // Set the duration of animation
+  animation.style.transitionDuration = `${binding.duration || 400}ms`;
+  // Set the background color of animation
+  animation.style.background = binding.color || 'currentColor';
+
+  el.appendChild(container);
+  const computed = window.getComputedStyle(el);
+  if (computed.position !== 'absolute' && computed.position !== 'fixed') el.style.position = 'relative';
+
+  const offset = el.getBoundingClientRect();
+  const x = binding.center ? '50%' : `${e.clientX - offset.left}px`;
+  const y = binding.center ? '50%' : `${e.clientY - offset.top}px`;
+
+  animation.classList.add('ripple__animation--enter');
+  animation.classList.add('ripple__animation--visible');
+
+  // Set the position of animation
+  animation.style.left = x;
+  animation.style.top = y;
+
+  style(animation, `translate(-50%, -50%) scale3d(0.01,0.01,0.01)`, binding);
+  // save the event timestamp
+  animation.dataset.activated = Date.now();
+
+  setTimeout(() => {
+    animation.classList.remove('ripple__animation--enter');
+    style(animation, `translate(-50%, -50%) scale3d(0.99,0.99,0.99)`, binding);
+  }, 0);
+}
+
+function hide($el, binding) {
+  const el = $el;
+  const ripples = el.getElementsByClassName('ripple__animation');
+
+  if (ripples.length === 0) return;
+  const animation = ripples[ripples.length - 1];
+  const diff = Date.now() - Number(animation.dataset.activated);
+  let delay = binding.duration - diff;
+  delay = delay < 0 ? 0 : delay;
+
+  setTimeout(() => {
+    animation.classList.remove('ripple__animation--visible');
+
+    setTimeout(() => {
+      // Need to figure out a new way to do this
+      try {
+        // reset the position of element
+        if (ripples.length < 1) el.style.position = null;
+        // remove the container
+        if (animation.parentNode) el.removeChild(animation.parentNode);
+      } catch (e) {
+        // do nothing
+      }
+    }, 300);
+  }, delay);
+}
+
+function bind(el, { value = DEFAULT_OPTION }) {
+  el.addEventListener('mousedown', e => show(e, el, value), false);
+
+  [
+    'touchend',
+    'touchcancel',
+    'mouseup',
+    'mouseleave',
+    'dragstart'
+  ].forEach(en => el.addEventListener(en, () => hide(el, value), false));
+}
+
+function unbind(el, { value = DEFAULT_OPTION }) {
+  // remove show event handler
+  el.removeEventListener('touchstart', e => show(e, el, value), false);
+  el.removeEventListener('mousedown', e => show(e, el, value), false);
+  // remove hide event handler
+  [
+    'touchend',
+    'touchcancel',
+    'mouseup',
+    'mouseleave',
+    'dragstart'
+  ].forEach(en => el.removeEventListener(en, () => hide(el, value), false));
+}
+
 function install(vue) {
-  vue.directive('ripple', ripple);
+  vue.directive(this.name, this);
 }
 
 export default {
+  name: 'ripple',
+  bind,
+  unbind,
   install,
-};
+}

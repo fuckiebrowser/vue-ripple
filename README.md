@@ -14,7 +14,10 @@
 
 ``` js
  {
-   color: '#222',
-   duration: 500
+   class: '', // Animation container className
+   center: false, // Position of animation
+   duration: 400, // Duration of animation  (unit: ms)
+   color: 'currentColor', // Background color of Animation
+   radius: '', // Radius of Animation ( default: the longer between width and height )
  }
 ```
